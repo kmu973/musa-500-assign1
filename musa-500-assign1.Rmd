@@ -12,9 +12,7 @@ output:
 ---
 
 ## Introduction
-State the problem and the setting of the analysis (i.e., Philadelphia).
-
-Present either a brief review of the literature (use Google Scholar) or simply speculate as to why the predictors we’re using might be related with the response variable.
+This study aims to examine the relationship between median house values and several neighborhood characteristics and establish a model for predicting median house values, with a geographic focus on Philadelphia. Tracing back to earlier models for house value prediction, in one of the influential work commissioned by the Department of Housing and Urban Development in Washington D.C., namely, Characteristic Prices of Housing in Fifty-nine Metropolitan Areas, we see the proposal of a hedonic model for predicting housing prices that has been widely adopted in later studies: 
 
 ***
 
@@ -60,16 +58,8 @@ Talk about stepwise regression – discuss what it does and its limitations
 Talk about k-fold cross-validation (mentioning that k = 5) – discuss what it is used for, describe how it is operationalized and mention that the RMSE is used to compare models (explain what the RMSE is and how it is calculated, presenting and describing any relevant formulas).
 
 ### Tools
-The analyses and visualizations for this report have all been done in R.
-
-***
-
-## Results
-
-### Exploratory Results
-
-#### Setup
-```{r setup, include = F}
+The analyses and visualizations for this report have all been done in R. Relevant packages and Markdown settings can be seen by unhiding the code in this section.
+```{r setup}
 
 library(tidyverse) #general
 library(sf) #spatial
@@ -87,14 +77,18 @@ library(caret) #for a different attempt at cvlm
 
 
 knitr::opts_chunk$set(echo = T, messages = F, warning = F, error = F)
-
 ```
+
+***
+
+## Results
+
+### Exploratory Results
 
 #### Import data
 In order to complete this entire project in R (rather than using ArcGIS, too), we have chosen to use the shapefile of data, rather than the .csv. Below, we import the shapefile and use a custom function to apply log transformations to the relevant columns. The function checks whether there are zero values in each column and then applies the appropriate log transformation accordingly.
 ```{r import}
-reg_data = read_sf('C:/Users/Nissim/Desktop/Fall 2022/Spat Stats/ass_1_data_shp/RegressionData.shp')
-
+reg_data = st_read('C:/Users/Nissim/Desktop/Fall 2022/Spat Stats/ass_1_data_shp/RegressionData.shp')
 
 #define a function to find zero values in columns
 col_zeros = function(a, b) {
@@ -147,6 +141,11 @@ table = as.data.frame(t(data.frame(
 
 colnames(table) = c("Variable", "Mean", "SD")
 
+table$Mean = as.numeric(table$Mean)
+table$SD = as.numeric(table$SD)
+
+table = table |>
+          mutate_if(is.numeric, round, digits = 3)
 
 table_out = table |>
         gt() |>
@@ -175,35 +174,80 @@ Also state whether the variables are normal before and after the logarithmic tra
                 geom_vline(xintercept = mean(reg_data$MEDHVAL), color = 'darkred') +
     geom_vline(xintercept = (mean(reg_data$MEDHVAL) + sd(reg_data$MEDHVAL)), linetype = 'dashed')+
     geom_vline(xintercept = (mean(reg_data$MEDHVAL) - sd(reg_data$MEDHVAL)), linetype = 'dashed') +
-    theme_minimal()
+    labs(title = "Figure 1a",
+        subtitle = "Histogram of Median House Values",
+        x = "Median House Value") +
+    theme_minimal() +
+    theme(plot.title = element_text(hjust = 0.5),
+          plot.subtitle = element_text(hjust = 0.5),
+          axis.title.y = element_blank()) +
+    annotate("text", x = mean(reg_data$MEDHVAL), y = 850, label = "bar(x) ", size = 7, parse = T)+
+    annotate("text", x = (mean(reg_data$MEDHVAL) + sd(reg_data$MEDHVAL)+1000), y = 850, label = "~sigma ", size = 7, parse = T)+
+    annotate("text", x = (mean(reg_data$MEDHVAL) - sd(reg_data$MEDHVAL)-2500), y = 850, label = "~-sigma ", size = 7, parse = T)
   
   pct_bach = ggplot(reg_data) +
     geom_histogram(aes(PCTBACHMOR)) +
     geom_vline(xintercept = mean(reg_data$PCTBACHMOR), color = 'darkred') +
     geom_vline(xintercept = (mean(reg_data$PCTBACHMOR) + sd(reg_data$PCTBACHMOR)), linetype = 'dashed')+
     geom_vline(xintercept = (mean(reg_data$PCTBACHMOR) - sd(reg_data$PCTBACHMOR)), linetype = 'dashed') +
-    theme_minimal()
+     labs(title = "Figure 1b",
+        subtitle = "Histogram of Educational Achievement",
+        x = "% w/a Bachelor's or Higher") +
+    theme_minimal() +
+    theme(plot.title = element_text(hjust = 0.5),
+          plot.subtitle = element_text(hjust = 0.5),
+          axis.title.y = element_blank()) +
+    annotate("text", x = mean(reg_data$PCTBACHMOR), y = 300, label = "bar(x) ", size = 5, parse = T)+
+    annotate("text", x = (mean(reg_data$PCTBACHMOR) + sd(reg_data$PCTBACHMOR)), y = 300, label = "~sigma ", size = 5, parse = T)+
+    annotate("text", x = (mean(reg_data$PCTBACHMOR) - sd(reg_data$PCTBACHMOR)), y = 300, label = "~-sigma ", size = 5, parse = T)
   
   nbelpov = ggplot(reg_data) +
     geom_histogram(aes(NBelPov100)) +
     geom_vline(xintercept = mean(reg_data$NBelPov100), color = 'darkred') +
     geom_vline(xintercept = (mean(reg_data$NBelPov100) + sd(reg_data$NBelPov100)), linetype = 'dashed')+
     geom_vline(xintercept = (mean(reg_data$NBelPov100) - sd(reg_data$NBelPov100)), linetype = 'dashed') +
-    theme_minimal()
+     labs(title = "Figure 1c",
+        subtitle = "Histogram of Poverty Levels",
+        x = "# Below Poverty Line") +
+    theme_minimal() +
+    theme(plot.title = element_text(hjust = 0.5),
+          plot.subtitle = element_text(hjust = 0.5),
+          axis.title.y = element_blank()) +
+    annotate("text", x = mean(reg_data$NBelPov100), y = 300, label = "bar(x) ", size = 5, parse = T)+
+    annotate("text", x = (mean(reg_data$NBelPov100) + sd(reg_data$NBelPov100)), y = 300, label = "~sigma ", size = 5, parse = T)+
+    annotate("text", x = (mean(reg_data$NBelPov100) - sd(reg_data$NBelPov100)), y = 300, label = "~-sigma ", size = 5, parse = T)
   
   pct_vac = ggplot(reg_data) +
     geom_histogram(aes(PCTVACANT)) +
     geom_vline(xintercept = mean(reg_data$PCTVACANT), color = 'darkred') +
     geom_vline(xintercept = (mean(reg_data$PCTVACANT) + sd(reg_data$PCTVACANT)), linetype = 'dashed')+
     geom_vline(xintercept = (mean(reg_data$PCTVACANT) - sd(reg_data$PCTVACANT)), linetype = 'dashed') +
-    theme_minimal()
+     labs(title = "Figure 1d",
+        subtitle = "Histogram of Vacancy Rates",
+        x = "% Vacancy Rate") +
+    theme_minimal() +
+    theme(plot.title = element_text(hjust = 0.5),
+          plot.subtitle = element_text(hjust = 0.5),
+          axis.title.y = element_blank()) +
+    annotate("text", x = mean(reg_data$PCTVACANT), y = 275, label = "bar(x) ", size = 5, parse = T)+
+    annotate("text", x = (mean(reg_data$PCTVACANT) + sd(reg_data$PCTVACANT)), y = 275, label = "~sigma ", size = 5, parse = T)+
+    annotate("text", x = (mean(reg_data$PCTVACANT) - sd(reg_data$PCTVACANT)), y = 275, label = "~-sigma ", size = 5, parse = T)
   
   pct_sing = ggplot(reg_data) +
     geom_histogram(aes(PCTSINGLES)) +
     geom_vline(xintercept = mean(reg_data$PCTSINGLES), color = 'darkred') +
     geom_vline(xintercept = (mean(reg_data$PCTSINGLES) + sd(reg_data$PCTSINGLES)), linetype = 'dashed')+
     geom_vline(xintercept = (mean(reg_data$PCTSINGLES) - sd(reg_data$PCTSINGLES)), linetype = 'dashed') +
-    theme_minimal()
+     labs(title = "Figure 1e",
+        subtitle = "Histogram of Single House Units",
+        x = "% Single House Units") +
+    theme_minimal() +
+    theme(plot.title = element_text(hjust = 0.5),
+          plot.subtitle = element_text(hjust = 0.5),
+          axis.title.y = element_blank()) +
+    annotate("text", x = mean(reg_data$PCTSINGLES), y = 450, label = "bar(x) ", size = 5, parse = T)+
+    annotate("text", x = (mean(reg_data$PCTSINGLES) + sd(reg_data$PCTSINGLES)), y = 450, label = "~sigma ", size = 5, parse = T)+
+    annotate("text", x = (mean(reg_data$PCTSINGLES) - sd(reg_data$PCTSINGLES)), y = 450, label = "~-sigma ", size = 5, parse = T)
   
   house_val
   
@@ -218,37 +262,82 @@ State that the other regression assumptions will be examined in a separate secti
  ln_house_val = ggplot(reg_data) +
                 geom_histogram(aes(ln_med_h_val)) +
                 geom_vline(xintercept = mean(reg_data$ln_med_h_val), color = 'darkred') +
-    geom_vline(xintercept = (mean(reg_data$ln_med_h_val) + sd(reg_data$ln_med_h_val)), linetype = 'dashed')+
-    geom_vline(xintercept = (mean(reg_data$ln_med_h_val) - sd(reg_data$ln_med_h_val)), linetype = 'dashed') +
-    theme_minimal()
+                geom_vline(xintercept = (mean(reg_data$ln_med_h_val) + sd(reg_data$ln_med_h_val)), linetype = 'dashed')+
+                geom_vline(xintercept = (mean(reg_data$ln_med_h_val) - sd(reg_data$ln_med_h_val)), linetype = 'dashed') +
+                labs(title = "Figure 2a",
+                    subtitle = "Histogram of Ln of Median House Values",
+                    x = "Ln of Median House Value") +
+                theme_minimal() +
+                theme(plot.title = element_text(hjust = 0.5),
+                      plot.subtitle = element_text(hjust = 0.5),
+                      axis.title.y = element_blank()) +
+                annotate("text", x = mean(reg_data$ln_med_h_val), y = 225, label = "bar(x) ", size = 7, parse = T)+
+                annotate("text", x = (mean(reg_data$ln_med_h_val) + sd(reg_data$ln_med_h_val)), y = 225, label = "~sigma ", size = 7, parse = T)+
+                annotate("text", x = (mean(reg_data$ln_med_h_val) - sd(reg_data$ln_med_h_val)), y = 225, label = "~-sigma ", size = 7, parse = T)
   
   ln_pct_bach = ggplot(reg_data) +
-    geom_histogram(aes(ln_pct_bach_more)) +
-    geom_vline(xintercept = mean(reg_data$ln_pct_bach_more), color = 'darkred') +
-    geom_vline(xintercept = (mean(reg_data$ln_pct_bach_more) + sd(reg_data$ln_pct_bach_more)), linetype = 'dashed')+
-    geom_vline(xintercept = (mean(reg_data$ln_pct_bach_more) - sd(reg_data$ln_pct_bach_more)), linetype = 'dashed') +
-    theme_minimal()
+                geom_histogram(aes(ln_pct_bach_more)) +
+                geom_vline(xintercept = mean(reg_data$ln_pct_bach_more), color = 'darkred') +
+                  geom_vline(xintercept = (mean(reg_data$ln_pct_bach_more) + sd(reg_data$ln_pct_bach_more)), linetype = 'dashed')+
+                  geom_vline(xintercept = (mean(reg_data$ln_pct_bach_more) - sd(reg_data$ln_pct_bach_more)), linetype = 'dashed') +
+                  labs(title = "Figure 2b",
+                      subtitle = "Histogram of Ln of Educational Achievement",
+                      x = "Ln of Educational Achievement") +
+                  theme_minimal() +
+                  theme(plot.title = element_text(hjust = 0.5),
+                        plot.subtitle = element_text(hjust = 0.5),
+                        axis.title.y = element_blank()) +
+                  annotate("text", x = mean(reg_data$ln_pct_bach_more), y = 140, label = "bar(x) ", size = 5, parse = T)+
+                  annotate("text", x = (mean(reg_data$ln_pct_bach_more) + sd(reg_data$ln_pct_bach_more)), y = 140, label = "~sigma ", size = 5, parse = T)+
+                  annotate("text", x = (mean(reg_data$ln_pct_bach_more) - sd(reg_data$ln_pct_bach_more)), y = 140, label = "~-sigma ", size = 5, parse = T)
   
   ln_nbelpov = ggplot(reg_data) +
-    geom_histogram(aes(ln_n_bel_pov_100)) +
-    geom_vline(xintercept = mean(reg_data$ln_n_bel_pov_100), color = 'darkred') +
-    geom_vline(xintercept = (mean(reg_data$ln_n_bel_pov_100) + sd(reg_data$ln_n_bel_pov_100)), linetype = 'dashed')+
-    geom_vline(xintercept = (mean(reg_data$ln_n_bel_pov_100) - sd(reg_data$ln_n_bel_pov_100)), linetype = 'dashed') +
-    theme_minimal()
+                geom_histogram(aes(ln_n_bel_pov_100)) +
+                geom_vline(xintercept = mean(reg_data$ln_n_bel_pov_100), color = 'darkred') +
+                  geom_vline(xintercept = (mean(reg_data$ln_n_bel_pov_100) + sd(reg_data$ln_n_bel_pov_100)), linetype = 'dashed')+
+                  geom_vline(xintercept = (mean(reg_data$ln_n_bel_pov_100) - sd(reg_data$ln_n_bel_pov_100)), linetype = 'dashed') +
+                  labs(title = "Figure 2c",
+                      subtitle = "Histogram of Ln of Poverty Levels",
+                      x = "Ln of # Below Poverty Line") +
+                  theme_minimal() +
+                  theme(plot.title = element_text(hjust = 0.5),
+                        plot.subtitle = element_text(hjust = 0.5),
+                        axis.title.y = element_blank()) +
+                  annotate("text", x = mean(reg_data$ln_n_bel_pov_100), y = 225, label = "bar(x) ", size = 5, parse = T)+
+                  annotate("text", x = (mean(reg_data$ln_n_bel_pov_100) + sd(reg_data$ln_n_bel_pov_100)), y = 225, label = "~sigma ", size = 5, parse = T)+
+                  annotate("text", x = (mean(reg_data$ln_n_bel_pov_100) - sd(reg_data$ln_n_bel_pov_100)), y = 225, label = "~-sigma ", size = 5, parse = T)
   
   ln_pct_vac = ggplot(reg_data) +
-    geom_histogram(aes(ln_pct_vacant)) +
-    geom_vline(xintercept = mean(reg_data$ln_pct_vacant), color = 'darkred') +
-    geom_vline(xintercept = (mean(reg_data$ln_pct_vacant) + sd(reg_data$ln_pct_vacant)), linetype = 'dashed')+
-    geom_vline(xintercept = (mean(reg_data$ln_pct_vacant) - sd(reg_data$ln_pct_vacant)), linetype = 'dashed') +
-    theme_minimal()
+                geom_histogram(aes(ln_pct_vacant)) +
+                geom_vline(xintercept = mean(reg_data$ln_pct_vacant), color = 'darkred') +
+                  geom_vline(xintercept = (mean(reg_data$ln_pct_vacant) + sd(reg_data$ln_pct_vacant)), linetype = 'dashed')+
+                  geom_vline(xintercept = (mean(reg_data$ln_pct_vacant) - sd(reg_data$ln_pct_vacant)), linetype = 'dashed') +
+                  labs(title = "Figure 2d",
+                      subtitle = "Histogram of Ln of Vacancy Rates",
+                      x = "Ln of % Vacancy Rate") +
+                  theme_minimal() +
+                  theme(plot.title = element_text(hjust = 0.5),
+                        plot.subtitle = element_text(hjust = 0.5),
+                        axis.title.y = element_blank()) +
+                  annotate("text", x = mean(reg_data$ln_pct_vacant), y = 150, label = "bar(x) ", size = 5, parse = T)+
+                  annotate("text", x = (mean(reg_data$ln_pct_vacant) + sd(reg_data$ln_pct_vacant)), y = 150, label = "~sigma ", size = 5, parse = T)+
+                  annotate("text", x = (mean(reg_data$ln_pct_vacant) - sd(reg_data$ln_pct_vacant)), y = 150, label = "~-sigma ", size = 5, parse = T)
   
   ln_pct_sing = ggplot(reg_data) +
-    geom_histogram(aes(ln_pct_singles)) +
-    geom_vline(xintercept = mean(reg_data$ln_pct_singles), color = 'darkred') +
-    geom_vline(xintercept = (mean(reg_data$ln_pct_singles) + sd(reg_data$ln_pct_singles)), linetype = 'dashed')+
-    geom_vline(xintercept = (mean(reg_data$ln_pct_singles) - sd(reg_data$ln_pct_singles)), linetype = 'dashed') +
-    theme_minimal()
+                geom_histogram(aes(ln_pct_singles)) +
+                geom_vline(xintercept = mean(reg_data$ln_pct_singles), color = 'darkred') +
+                  geom_vline(xintercept = (mean(reg_data$ln_pct_singles) + sd(reg_data$ln_pct_singles)), linetype = 'dashed')+
+                  geom_vline(xintercept = (mean(reg_data$ln_pct_singles) - sd(reg_data$ln_pct_singles)), linetype = 'dashed') +
+                  labs(title = "Figure 2e",
+                      subtitle = "Histogram of Ln of Single House Units",
+                      x = "Ln of % Single House Units") +
+                  theme_minimal() +
+                  theme(plot.title = element_text(hjust = 0.5),
+                        plot.subtitle = element_text(hjust = 0.5),
+                        axis.title.y = element_blank()) +
+                  annotate("text", x = mean(reg_data$ln_pct_singles), y = 225, label = "bar(x) ", size = 5, parse = T)+
+                  annotate("text", x = (mean(reg_data$ln_pct_singles) + sd(reg_data$ln_pct_singles)), y = 225, label = "~sigma ", size = 5, parse = T)+
+                  annotate("text", x = (mean(reg_data$ln_pct_singles) - sd(reg_data$ln_pct_singles)), y = 225, label = "~-sigma ", size = 5, parse = T)
   
   ln_house_val
   
@@ -266,19 +355,35 @@ be strongly associated with the dependent variable based on the visualization? A
 #lifted from lovelace: https://geocompr.robinlovelace.net/adv-map.html#faceted-maps
 tmap_mode("plot")
 
+phl_city_lims = st_read("C:/Users/Nissim/Desktop/Fall 2022/Spat Stats/phl_city_limits/City_Limits.shp")
+
 tm_shape(reg_data) + 
-  tm_polygons(col = "ln_med_h_val", border.col = NA, lwd = 0, palette = "Blues", style = "jenks") + 
-  tm_layout(legend.position = c("right", "bottom"))
+  tm_polygons(title = "Ln of Median House Value", col = "ln_med_h_val", border.col = NA, border.alpha = 0, lwd = 0, palette = "Blues", style = "jenks") + 
+  tm_shape(phl_city_lims) +
+  tm_borders(col = "grey", lwd = 5) +
+  tm_compass(position = c("left", "top")) +
+  tm_layout(main.title = "Figure 3a",
+            legend.position = c("right", "bottom")) 
 
 facets = c("ln_pct_bach_more",
            "ln_n_bel_pov_100",
            "ln_pct_vacant",
            "ln_pct_singles")
 
+facet_titles = c("Ln of Edu. Attain.",
+                 "Ln of Pov. Levels",
+                 "Ln of Vacancy",
+                 "Ln of Single Occ")
+
 tm_shape(reg_data) + 
-  tm_polygons(facets, border.col = NA, lwd = 0, palette = "Blues", style = "jenks") + 
-  tm_layout(legend.position = c("right", "bottom")) +
-  tm_facets(nrow = 2, sync = TRUE)
+  tm_polygons(facets, title = facet_titles, border.col = NA, border.alpha = 0,lwd = 0, palette = "Blues", style = "jenks") + 
+  tm_facets(nrow = 2, sync = TRUE) +
+  tm_layout(legend.position = c("right", "bottom"),
+            panel.labels = c("Figure 3b",
+                             "Figure 3c",
+                             "Figure 3d",
+                             "Figure 3e"))
+  
 
 ```
 
@@ -391,7 +496,7 @@ Now, present the choropleth map of the standardized regression residuals. Do the
 You will examine the spatial autocorrelation of the variables and residuals and run spatial regressions in the next assignment.
 ```{r srrs}
 tm_shape(reg_data) + 
-  tm_polygons(col = "stand_resids", border.col = NA, lwd = 0, palette = "Blues", style = "jenks") + 
+  tm_polygons(col = "stand_resids", border.col = NA, border.alpha = 0.1, lwd = 0, palette = "Blues", style = "jenks") + 
   tm_layout(legend.position = c("right", "bottom"))
 ```
 
